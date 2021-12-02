@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"encoding/json"
-	"net/http"
+	"fmt"
 	"io/ioutil"
+	"log"
+	"net/http"
 
 	"github.com/jroimartin/gocui"
 )
@@ -15,7 +15,9 @@ type boardResponse struct {
 }
 
 type board struct {
-	Title string `json:"title"`
+	Board       string `json:"board"`
+	Title       string `json:"title"`
+	Description string `json:"meta_description"`
 }
 
 func main() {
@@ -25,9 +27,11 @@ func main() {
 	}
 	defer g.Close()
 
+	g.Cursor = true
+
 	g.SetManagerFunc(layout)
 
-	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
+	if err := keybindings(g); err != nil {
 		log.Panicln(err)
 	}
 
@@ -37,6 +41,10 @@ func main() {
 
 }
 
+func quit(g *gocui.Gui, v *gocui.View) error {
+	return gocui.ErrQuit
+}
+
 func layout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
 	if v, err := g.SetView("boards", 1, 1, maxX/6, maxY-1); err != nil {
@@ -44,7 +52,18 @@ func layout(g *gocui.Gui) error {
 			return err
 		}
 		v.Title = "Boards"
-		getBoards()
+		v.Highlight = true
+		v.SelBgColor = gocui.ColorGreen
+		v.SelFgColor = gocui.ColorBlack
+
+		boards := getBoards()
+		for i := 0; i < len(boards); i++ {
+			fmt.Fprintln(v, boards[i].Board, "-", boards[i].Title)
+		}
+
+		if _, err := g.SetCurrentView("boards"); err != nil {
+			return err
+		}
 	}
 	if v, err := g.SetView("threads", maxX/6+1, 1, maxX/6*3, maxY-1); err != nil {
 		if err != gocui.ErrUnknownView {
@@ -61,21 +80,57 @@ func layout(g *gocui.Gui) error {
 	return nil
 }
 
-func quit(g *gocui.Gui, v *gocui.View) error {
-	return gocui.ErrQuit
+func keybindings(g *gocui.Gui) error {
+	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
+		return err
+	}
+	if err := g.SetKeybinding("boards", gocui.KeyArrowDown, gocui.ModNone, cursorDown); err != nil {
+		return err
+	}
+	if err := g.SetKeybinding("boards", gocui.KeyArrowUp, gocui.ModNone, cursorUp); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func getBoards() {
+func cursorDown(g *gocui.Gui, v *gocui.View) error {
+	if v != nil {
+		cx, cy := v.Cursor()
+		if err := v.SetCursor(cx, cy+1); err != nil {
+			ox, oy := v.Origin()
+			if err := v.SetOrigin(ox, oy+1); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func cursorUp(g *gocui.Gui, v *gocui.View) error {
+	if v != nil {
+		ox, oy := v.Origin()
+		cx, cy := v.Cursor()
+		if err := v.SetCursor(cx, cy-1); err != nil && oy > 0 {
+			if err := v.SetOrigin(ox, oy-1); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func getBoards() []board {
 	resp, err := http.Get("https://a.4cdn.org/boards.json")
 	if err != nil {
-	  log.Fatalln(err)
+		log.Fatalln(err)
 	}
 
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-	  log.Fatalln(err)
+		log.Fatalln(err)
 	}
 
 	boardRes := boardResponse{}
@@ -84,5 +139,5 @@ func getBoards() {
 		log.Fatalln(jsonErr)
 	}
 
-	fmt.Println(boardRes.Boards)
+	return boardRes.Boards
 }
