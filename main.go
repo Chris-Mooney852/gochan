@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 
 	"github.com/jroimartin/gocui"
 )
@@ -18,6 +19,17 @@ type board struct {
 	Board       string `json:"board"`
 	Title       string `json:"title"`
 	Description string `json:"meta_description"`
+}
+
+type page struct {
+	Threads []thread `json:"threads"`
+}
+
+type thread struct {
+	No   int    `json:"no"`
+	Com  string `json:"com"`
+	Sub  string `json:"sub"`
+	Name string `json:"name"`
 }
 
 func main() {
@@ -69,7 +81,7 @@ func layout(g *gocui.Gui) error {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		v.Title = "Theads"
+		v.Title = "Threads"
 	}
 	if v, err := g.SetView("thread", maxX/6*3+1, 1, maxX-1, maxY-1); err != nil {
 		if err != gocui.ErrUnknownView {
@@ -89,6 +101,25 @@ func keybindings(g *gocui.Gui) error {
 	}
 	if err := g.SetKeybinding("boards", gocui.KeyArrowUp, gocui.ModNone, cursorUp); err != nil {
 		return err
+	}
+	if err := g.SetKeybinding("boards", gocui.KeyEnter, gocui.ModNone, selectBoard); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func selectBoard(g *gocui.Gui, v *gocui.View) error {
+	var selected string
+	var err error
+
+	_, cy := v.Cursor()
+	if selected, err = v.Line(cy); err != nil {
+		selected = "Get rekt fag, you did it wrong"
+	}
+
+	if err := getCatalog(g, selected); err != nil {
+		log.Fatal(err)
 	}
 
 	return nil
@@ -140,4 +171,56 @@ func getBoards() []board {
 	}
 
 	return boardRes.Boards
+}
+
+func getCatalog(g *gocui.Gui, selected string) error {
+	re, err := regexp.Compile("^\\w+")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	boardName := string(re.Find([]byte(selected)))
+
+	url := fmt.Sprintf("https://a.4cdn.org/%s/catalog.json", boardName)
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	var pages []page
+	jsonErr := json.Unmarshal(body, &pages)
+
+	if jsonErr != nil {
+		log.Fatalln(jsonErr)
+	}
+
+	printThreads(g, pages)
+
+	return nil
+}
+
+func printThreads(g *gocui.Gui, pages []page) error {
+	if v, err := g.View("threads"); err != nil {
+		if err != gocui.ErrUnknownView {
+			return err
+		}
+		if _, err := g.SetCurrentView("threads"); err != nil {
+			return err
+		}
+	} else {
+		v.Clear()
+		for i := 0; i < len(pages); i++ {
+			for j := 0; j < len(pages[i].Threads); j++ {
+				fmt.Fprintln(v, pages[i].Threads[j].Com)
+			}
+		}
+	}
+
+	return nil
 }
