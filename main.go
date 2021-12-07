@@ -30,6 +30,7 @@ type thread struct {
 	Com  string `json:"com"`
 	Sub  string `json:"sub"`
 	Name string `json:"name"`
+	Now string `json:"now"`
 }
 
 func main() {
@@ -217,7 +218,11 @@ func printThreads(g *gocui.Gui, pages []page) error {
 		v.Clear()
 		for i := 0; i < len(pages); i++ {
 			for j := 0; j < len(pages[i].Threads); j++ {
-				fmt.Fprintln(v, pages[i].Threads[j].Com)
+        fmt.Fprintf(v, "\033[32;1m%s\033[0m %s No.%d\n", pages[i].Threads[j].Name, pages[i].Threads[j].Now, pages[i].Threads[j].No)
+        fmt.Fprintf(v, "\033[34;1m%s\033[0m\n", pages[i].Threads[j].Sub)
+        fmt.Fprintln(v, pages[i].Threads[j].Com)
+
+        fmt.Fprintln(v, "")
 			}
 		}
 	}
