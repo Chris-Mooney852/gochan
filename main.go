@@ -86,12 +86,14 @@ func layout(g *gocui.Gui) error {
 			return err
 		}
 		v.Title = "Threads"
+		v.Wrap = true
 	}
 	if v, err := g.SetView("thread", maxX/6*3+1, 1, maxX-1, maxY-1); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		v.Title = "Thead"
+		v.Title = "Thread"
+		v.Wrap = true
 	}
 	return nil
 }
@@ -214,9 +216,6 @@ func printThreads(g *gocui.Gui, pages []page) error {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		if _, err := g.SetCurrentView("threads"); err != nil {
-			return err
-		}
 	} else {
 		v.Clear()
 		for i := 0; i < len(pages); i++ {
@@ -225,11 +224,18 @@ func printThreads(g *gocui.Gui, pages []page) error {
 
 				fmt.Fprintf(v, "\033[36;1mNo.%d\033[0m\n", thread.No)
 				fmt.Fprintf(v, "\033[36;4m%s%s\033[32;1m %s\033[0m %s\n", thread.FileName, thread.Ext, thread.Name, thread.Now)
-				fmt.Fprintf(v, "\033[34;1m%s\033[0m\n", thread.Sub)
+
+				if len(thread.Sub) > 0 {
+					fmt.Fprintf(v, "\033[34;1m%s\033[0m\n", thread.Sub)
+				}
+
 				fmt.Fprintln(v, thread.Com)
 
 				fmt.Fprintln(v, "")
 			}
+		}
+		if _, err := g.SetCurrentView("threads"); err != nil {
+			return err
 		}
 	}
 
